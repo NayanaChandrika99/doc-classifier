@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+
+# Logs and data
+*.log
+*.tmp
+*.swp
+
+# macOS
+.DS_Store
+
+# Output artifacts
+outputs/
+outputs/**
+
+# Coverage / test artifacts
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Pip / dependency caches
+*.egg-info/
+.eggs/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# Build
+build/
+dist/
+
+# Ignore markdown files except README
+*.md
+!README.md
+*.md
