@@ -1,13 +1,6 @@
 # Tennr Classifier Scaffold
 
-This repository hosts the groundwork for a multi-patient document splitter. Completed phases include:
-
-- **Phase 1:** environment scaffolding, configuration loader, logging helpers, and base tests.
-- **Phase 2:** PDF rendering and OCR modules, plus inspection tooling.
-- **Phase 3:** regex-based identifier extraction producing structured patient entities.
-- **Phase 4:** fuzzy matching and entity linking to cluster identifiers into patient-level profiles.
-- **Phase 5:** page assignment logic that maps each page to the linked patient or flags it for manual review.
-- **Phase 6:** document splitting and metadata export producing per-patient PDFs and JSON summaries.
+This repository hosts the groundwork for a multi-patient document splitter. The pipeline ingests a multi-patient PDF, renders pages, runs OCR, extracts patient identifiers using rule-based heuristics, links entities into patient profiles, classifies pages to patients, and emits per-patient PDFs plus metadata via both a CLI and FastAPI API.
 
 ## Environment Setup
 
@@ -141,15 +134,5 @@ tests/
 scripts/
   bootstrap_env.sh          # Environment setup helper
   inspect_pdf.py            # Manual inspection CLI for extraction + OCR
-plan/
-  plan3.md                  # High-level project roadmap
-  phase1_execplan.md        # Detailed plan for repository foundation
-  phase2_execplan.md        # Executed plan for page extraction & OCR
-  phase3_execplan.md        # Plan for regex-based identifier extraction
-  phase4_execplan.md        # Plan for fuzzy matching and entity linking
-  phase5_execplan.md        # Plan for page assignment logic
-  phase6_execplan.md        # Plan for document splitting & metadata output
-  phase7_execplan.md        # Plan for orchestrator, API, and CLI
-```
 
-Refer to `plan/plan3.md` for the full implementation roadmap and `plan/phase1_execplan.md` for the detailed Phase 1 specification.
+```
