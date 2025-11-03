@@ -1,4 +1,4 @@
-# RaeLM — Reliable Agentic Extraction with Language Models
+# Docsumnet Classifier with Language Models
 
 **End-to-end medical document OCR and extraction platform with human-in-the-loop review, confidence scoring, and MLOps monitoring**
 
