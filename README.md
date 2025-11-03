@@ -1,138 +1,232 @@
-# Tennr Classifier Scaffold
+# RaeLM — Reliable Agentic Extraction with Language Models
 
-This repository hosts the groundwork for a multi-patient document splitter. The pipeline ingests a multi-patient PDF, renders pages, runs OCR, extracts patient identifiers using rule-based heuristics, links entities into patient profiles, classifies pages to patients, and emits per-patient PDFs plus metadata via both a CLI and FastAPI API.
+**End-to-end medical document OCR and extraction platform with human-in-the-loop review, confidence scoring, and MLOps monitoring**
 
-## Environment Setup
+---
 
-1. Ensure macOS has Python 3.10+ and Homebrew installed.  
-2. Install [`uv`](https://github.com/astral-sh/uv) if it is not already present:
+## Why This Project?
 
-   ```
-   brew install uv
-   ```
+Medical document processing demands **100% accuracy** on structured data extraction (patient names, dates, medications, diagnoses), but OCR errors and document variability make full automation impossible. Manual review of every document is too slow.
 
-3. Install the PDF/OCR prerequisites:
+The solution: **confidence-based human review** where:
+- **High-confidence predictions** (≥95%) auto-approve and flow directly to downstream systems
+- **Low-confidence predictions** (<95%) route to human annotators for correction
+- **Model improves continuously** from human feedback via active learning
+- **Full observability** with MLflow tracking, Prometheus metrics, and Grafana dashboards
 
-   ```
-   brew install poppler tesseract
-   ```
+This platform bridges the gap between unreliable full automation and costly manual processing.
 
-4. Clone the repository and bootstrap the environment:
+---
 
-   ```
-   ./scripts/bootstrap_env.sh
-   ```
-
-   This creates `.venv` via `uv venv` and installs dependencies with `uv pip install -r requirements.txt`.
-
-5. Later phases will expand `requirements.txt` with NER, fuzzy matching, and API dependencies outlined in `plan2.md`.
-
-## Running Tests
-
-Run tests directly through `uv` (activation optional):
+## Visual Flow
 
 ```
-uv run pytest
+┌──────────────────────────┐
+│  Document Ingestion      │
+│  (PDF, Image, Fax)       │
+└───────────┬──────────────┘
+            │
+            ▼
+┌──────────────────────────────────┐
+│   Preprocessing Pipeline         │
+│   ┌────────────────────────────┐ │
+│   │ Image Enhancement          │ │
+│   │ • Deskew, denoise          │ │
+│   │ • Contrast normalization   │ │
+│   └────────────────────────────┘ │
+│   ┌────────────────────────────┐ │
+│   │ Layout Detection           │ │
+│   │ • Form fields              │ │
+│   │ • Tables, checkboxes       │ │
+│   └────────────────────────────┘ │
+└───────────┬──────────────────────┘
+            │
+            ▼
+┌──────────────────────────────────┐
+│   Inference Engine               │
+│   ┌────────────────────────────┐ │
+│   │ olmOCR-2-7B-MLX           │ │
+│   │ (Quantized VLM)            │ │
+│   └────────────────────────────┘ │
+│   ┌────────────────────────────┐ │
+│   │ Self-Consistency Sampling  │ │
+│   │ • Multiple predictions     │ │
+│   │ • Agreement scoring        │ │
+│   └────────────────────────────┘ │
+│   ┌────────────────────────────┐ │
+│   │ Confidence Estimation      │ │
+│   │ • Per-field calibration    │ │
+│   └────────────────────────────┘ │
+└───────────┬──────────────────────┘
+            │
+            ▼
+┌──────────────────────────────────┐
+│   Schema Mapping & Validation    │
+│   • Medical domain rules         │
+│   • Field type checking          │
+│   • Cross-field validation       │
+└───────────┬──────────────────────┘
+            │
+            ▼
+      ┌─────┴─────┐
+      │ Conf ≥ τ? │
+      └─────┬─────┘
+            │
+    ┌───────┴────────┐
+    │                │
+    ▼ YES (≥95%)     ▼ NO (<95%)
+┌─────────┐    ┌──────────────────┐
+│ Auto-   │    │ Human Review     │
+│ Approve │    │ Queue            │
+│         │    │ ┌──────────────┐ │
+│ Export  │    │ │ Streamlit UI │ │
+│ to      │    │ │ Annotation   │ │
+│ EHR/DB  │    │ └──────────────┘ │
+└─────────┘    │ Corrections      │
+               │ Fed Back         │
+               └─────┬────────────┘
+                     │
+                     ▼
+               ┌──────────────────┐
+               │ Active Learning  │
+               │ • Dataset update │
+               │ • Model retrain  │
+               └──────────────────┘
+                     │
+                     ▼
+               ┌──────────────────┐
+               │ Observability    │
+               │ • MLflow tracking│
+               │ • Prometheus     │
+               │ • Grafana        │
+               └──────────────────┘
 ```
 
-The tests cover configuration, logging, page extraction, OCR plumbing, and identifier extraction. They rely on mocked OCR calls by default. To exercise real Tesseract output, set `TENNR_TEST_USE_TESSERACT=1` and ensure the binary is installed.
+---
 
-## Command-Line Interface
+## Tech Stack
 
-The repository exposes a temporary CLI entry point for smoke testing. You can invoke it without manual activation:
+### Core ML/AI
+- **Vision-Language Model**: olmOCR-2-7B-MLX (quantized for Apple Silicon)
+- **Framework**: PyTorch with MLX acceleration
+- **Confidence Estimation**: Self-consistency sampling + calibration
+- **Active Learning**: Dataset manager with annotation queue
 
-```
-uv run python -m src.__main__ --show-settings
-```
+### Backend Services
+- **API Framework**: FastAPI (async endpoints)
+- **Task Queue**: Celery with Redis broker
+- **Database**: PostgreSQL (metadata, annotations, audit logs)
+- **Model Registry**: MLflow (experiment tracking, model versioning)
 
-To process a PDF end-to-end:
+### Observability
+- **Metrics**: Prometheus (scraping /metrics endpoints)
+- **Dashboards**: Grafana (pre-configured visualizations)
+- **Logging**: Structured logs with request tracing
 
-```
-uv run python -m src.__main__ --input /path/to/sample.pdf --output /desired/output
-```
+### Infrastructure
+- **Containerization**: Docker + Docker Compose
+- **Orchestration**: Make-based workflows
+- **UI**: Streamlit (annotation interface, monitoring dashboard)
 
-Use the inspection helper to exercise page extraction and OCR end-to-end:
+---
 
-```
-uv run python scripts/inspect_pdf.py --input /path/to/sample.pdf --backend tesseract
-```
+## Features & ML Components
 
-Environment variables control behaviour:
+### Core Capabilities
+✓ **End-to-End Pipeline** — Ingestion → Preprocessing → Inference → Validation → Export  
+✓ **Human-in-the-Loop** — Confidence-based routing to annotation queue  
+✓ **Self-Consistency Sampling** — Multiple predictions with agreement scoring  
+✓ **Calibrated Confidence** — Per-field confidence estimation with calibration  
+✓ **Schema Mapping** — Medical domain-specific validation and type checking  
+✓ **Active Learning** — Continuous model improvement from human corrections  
+✓ **Multi-Model Support** — Model router with fallback strategies  
+✓ **Full Observability** — MLflow, Prometheus, Grafana integration  
 
-- `TENNR_OCR_BACKEND` (`tesseract`, `olmocr`, or `module:function`) selects the OCR strategy.
-- `TENNR_PDF_RENDER_DPI` adjusts render quality (default 200).
-- `TENNR_PERSIST_IMAGES=false` disables long-term storage of rendered PNGs.
-- `TENNR_OLMOCR_HANDLER` points to the callable to use when `olmocr` is selected.
-- `TENNR_REGEX_NAME`, `TENNR_REGEX_MRN`, `TENNR_REGEX_DOB`, `TENNR_REGEX_PHONE` override identifier patterns.
-- `TENNR_ENTITY_MIN_CONFIDENCE` adjusts the minimum score required to accept a match.
-- `TENNR_NAME_MATCH_THRESHOLD`, `TENNR_MRN_MATCH_THRESHOLD`, `TENNR_DOB_MATCH_THRESHOLD`, `TENNR_PHONE_MATCH_THRESHOLD` tune fuzzy matching thresholds.
-- `TENNR_LINKER_STRICT_MODE` toggles conservative clustering behaviour.
-- `TENNR_ASSIGN_MIN_CONFIDENCE`, `TENNR_ASSIGN_*_WEIGHT`, `TENNR_ASSIGN_AMBIGUITY_MARGIN`, `TENNR_ASSIGN_ALLOW_UNASSIGNED` configure page assignment scoring and manual review behaviour.
-- `TENNR_SPLIT_OUTPUT_DIR`, `TENNR_SPLIT_INCLUDE_UNASSIGNED`, `TENNR_SPLIT_METADATA_FORMAT`, `TENNR_SPLIT_CLEAN_TEMP` control document splitting outputs.
+### ML Platform Components
+- **Model Registry** (`ml_platform/model_registry.py`): Version control for models
+- **Dataset Manager** (`ml_platform/dataset_manager.py`): Unified data access
+- **Calibration** (`ml_platform/calibration.py`): Confidence score calibration
+- **Annotation Queue** (`ml_platform/annotation_queue.py`): Human review orchestration
+- **Active Learning** (`ml_platform/active_learning.py`): Sample selection strategies
 
-## API Usage
+### Inference Components
+- **olmOCR Adapter** (`inference/olmocr_adapter.py`): Model loading and inference
+- **Confidence Scorer** (`inference/confidence_scorer.py`): Multi-method confidence estimation
+- **Prompt Selector** (`inference/prompt_selector.py`): Dynamic prompt management
+- **Self-Consistency** (`inference/self_consistency.py`): Ensemble prediction
 
-Run the FastAPI app:
 
-```
-uv run uvicorn src.api:app --reload
-```
-
-Health check:
-
-```
-curl http://127.0.0.1:8000/healthz
-```
-
-Split a PDF:
-
-```
-curl -F "file=@/path/to/sample.pdf" http://127.0.0.1:8000/split
-```
-
-The response lists artifact metadata paths, patient PDFs, and unassigned page information.
-
-## Further Reading
-
-- `docs/metrics.md` – detailed explanation of collected metrics.
-- `docs/operations.md` – runbook for operating the pipeline and service.
-- `docs/troubleshooting.md` – guidance for resolving common issues.
-
-## Project Layout
+## Key Directories
 
 ```
-config.py                   # Application-wide settings loader
-requirements.txt            # Phase 1 dependency pinning (expanded later)
-src/
-  __main__.py               # CLI entry point
-  __init__.py               # Package marker
-  api.py                    # FastAPI application
-  tennr_classifier/
-    __init__.py             # Exported data models
-    logging_utils.py        # Logging configuration helpers
-    pipeline.py             # Core data classes for pipeline components
-    page_extractor.py       # PDF to image rendering utilities
-    ocr_processor.py        # OCR pipeline with pluggable backends
-    entity_extractor.py     # Regex-based identifier extraction
-    fuzzy_matcher.py        # RapidFuzz-based similarity scoring helpers
-    entity_linker.py        # Patient clustering logic
-    page_assigner.py        # Page-to-patient assignment logic
-    document_splitter.py    # Patient-specific PDF/metadata generation
-    orchestrator.py         # High-level pipeline wiring
-tests/
-  test_skeleton.py          # Sanity tests for config/logging scaffolding
-  test_page_extractor.py    # PDF rendering coverage
-  test_ocr_processor.py     # OCR module coverage
-  test_entity_extractor.py  # Identifier extraction coverage
-  test_fuzzy_matcher.py     # Fuzzy matching coverage
-  test_entity_linker.py     # Entity linking coverage
-  test_page_assigner.py     # Page assignment coverage
-  test_document_splitter.py # Document splitting coverage
-  test_orchestrator.py      # Orchestrator wiring coverage
-  test_api.py               # API endpoint coverage
-  test_cli.py               # CLI behaviour coverage
-scripts/
-  bootstrap_env.sh          # Environment setup helper
-  inspect_pdf.py            # Manual inspection CLI for extraction + OCR
-
+tennr-realm/
+├── api/
+│   ├── main.py              # FastAPI application entry
+│   ├── model_router.py      # Multi-model routing logic
+│   └── routes/
+│       ├── extraction.py    # Document extraction endpoints
+│       ├── annotation.py    # Annotation queue APIs
+│       └── health.py        # Health checks
+├── inference/
+│   ├── olmocr_adapter.py    # Model loading and inference
+│   ├── confidence_scorer.py # Confidence estimation
+│   ├── prompt_selector.py   # Dynamic prompt selection
+│   └── self_consistency.py  # Ensemble prediction
+├── ml_platform/
+│   ├── model_registry.py    # MLflow model management
+│   ├── dataset_manager.py   # Dataset versioning
+│   ├── calibration.py       # Confidence calibration
+│   ├── annotation_queue.py  # Human review orchestration
+│   └── active_learning.py   # Sample selection strategies
+├── preprocessing/
+│   ├── image_enhancer.py    # Image quality improvement
+│   └── layout_detector.py   # Form structure detection
+├── validation/
+│   ├── schema_validator.py  # Field type checking
+│   ├── medical_rules.py     # Domain-specific validation
+│   └── cross_field.py       # Consistency checks
+├── ui/
+│   ├── annotation_app.py    # Streamlit annotation interface
+│   ├── monitoring.py        # Real-time metrics dashboard
+│   └── components/          # Reusable UI components
+├── docker/
+│   ├── docker-compose.yml   # Service orchestration
+│   ├── grafana/             # Dashboard configs
+│   └── prometheus/          # Scraping configs
+├── configs/
+│   ├── models/              # Model configurations
+│   ├── prompts/             # Prompt templates
+│   └── training/            # Training hyperparameters
+├── scripts/
+│   ├── run_demo.sh          # End-to-end demo
+│   ├── synthetic_data_generator.py
+│   └── verify_milestone1.py
+└── tests/
+    ├── test_inference.py
+    ├── test_validation.py
+    ├── test_active_learning.py
+    └── test_integration.py
 ```
+
+
+## Documentation
+
+- **[docs/API_CONTRACT_FIX.md](docs/API_CONTRACT_FIX.md)** — API schema validation fixes
+- **[docs/IMPLEMENTATION_COMPLETE.md](docs/IMPLEMENTATION_COMPLETE.md)** — Implementation checklist
+- **[docs/MILESTONE1_SUMMARY.md](docs/MILESTONE1_SUMMARY.md)** — Phase 1 completion summary
+- **[docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md)** — High-level project overview
+- **[docs/SECURITY_FIX_SUMMARY.md](docs/SECURITY_FIX_SUMMARY.md)** — Security vulnerability patches
+
+---
+
+## License & Credits
+
+RaeLM is a production-oriented medical document processing platform.  
+Built with olmOCR-2-7B-MLX, FastAPI, MLflow, and Streamlit.  
+Designed for HIPAA-compliant healthcare workflows with human-in-the-loop quality assurance.
+
+**Key Technologies**:
+- olmOCR-2-7B-MLX by richardyoung (Hugging Face)
+- FastAPI by Sebastián Ramírez
+- MLflow by Databricks
+- Grafana Labs observability stack
